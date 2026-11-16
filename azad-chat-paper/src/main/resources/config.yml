@@ -20,7 +20,8 @@ server:
     "25570": lobby
 
 nickname:
-  enabled: true
+  # false = 关闭中文昵称（聊天/TAB 都显示原始 ID）
+  enabled: false
   # ChineseName 的配置文件（绝对路径最稳；多台服共用同一份，保证全服昵称一致）
   file: "/home/minecraft/nijijoji/mc01/plugins/ChineseName/config.yml"
   # 文件里的颜色代码前缀，& 会被转成 §
@@ -32,7 +33,3 @@ render:
   mirror-inject: true
   # 是否保留控制台输出（跨服消息在代理侧统一打印）
   show-to-console: true
-
-# 进服 / 退服 / 切服提示默认关闭：这些由 ProxyMessages 负责，避免重复
-events:
-  join-quit: false

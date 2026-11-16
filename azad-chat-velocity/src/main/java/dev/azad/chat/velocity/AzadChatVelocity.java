@@ -68,6 +68,29 @@ public final class AzadChatVelocity {
         channel = config.get("redis.channel", "azad-chat");
         bus = new RedisBus(host, port, password, new BusLogger(logger));
         bus.subscribe(channel, this::onBusMessage);
+        String nickFile = config.get("nickname.file", "/home/minecraft/nijijoji/mc01/plugins/ChineseName/config.yml");
+        Path nickPath = Path.of(nickFile).toAbsolutePath().normalize();
+        if (!config.getBool("nickname.enabled", false)) {
+            logger.info("[Azad-Chat] 中文昵称已禁用（聊天与 TAB 均使用原始玩家 ID）");
+            logger.info("[Azad-Chat] 已启用，频道={}，TAB 服务器标签={}", channel, tags.all());
+            return;
+        }
+        Thread hook = new Thread(() -> {
+            for (int attempt = 1; attempt <= 20; attempt++) {
+                if (TabNickHook.tryInstall(logger, nickPath)) {
+                    return;
+                }
+                try {
+                    Thread.sleep(2000L);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            logger.warn("[Azad-Chat] 20 次尝试后仍未注册到 TAB（TAB 未安装或版本不兼容），TAB 将显示原始 ID");
+        }, "azad-chat-tab-hook");
+        hook.setDaemon(true);
+        hook.start();
         logger.info("[Azad-Chat] 已启用，频道={}，TAB 服务器标签={}", channel, tags.all());
     }
 

@@ -14,6 +14,14 @@ tab:
   # 找不到对应服务器时用的标签
   fallback-tag: ""
 
+# 中文昵称数据源（ChineseName 的 config.yml）。
+# 本插件会把它注册成 TAB 玩家占位符 %azadchat_nick%，
+# 在 velocity/plugins/tab/groups.yml 里用 customtabname: "%azadchat_nick%" 即可显示中文名。
+nickname:
+  # false = 关闭中文昵称（聊天/TAB 都显示原始 ID）
+  enabled: false
+  file: "/home/minecraft/nijijoji/mc01/plugins/ChineseName/config.yml"
+
 # 昵称最大长度（按字符截断，防止刷屏）
 nickname-maxlength: 24
 
