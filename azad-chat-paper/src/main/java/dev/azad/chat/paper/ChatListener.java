@@ -37,7 +37,8 @@ public final class ChatListener implements Listener {
     public void onDeath(PlayerDeathEvent event) {
         Component death = event.deathMessage();
         if (death == null) {
-            return;
+            // 服务器关了死亡播报时 deathMessage() 为 null，退化成通用「XX 死了」
+            death = Component.translatable("death.attack.generic", Component.text(event.getEntity().getName()));
         }
         Payload payload = base(event.getEntity(), Payload.DEATH);
         payload.body = toJson(death);

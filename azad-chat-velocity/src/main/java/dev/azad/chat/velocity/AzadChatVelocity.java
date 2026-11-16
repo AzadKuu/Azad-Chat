@@ -14,6 +14,7 @@ import dev.azad.chat.common.RedisBus;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.luckperms.api.LuckPermsProvider;
 import org.slf4j.Logger;
 
@@ -32,6 +33,11 @@ import java.util.regex.Pattern;
         authors = {"Azad"}
 )
 public final class AzadChatVelocity {
+
+    /** 死亡消息里去掉 %name% 之后，格式串开头常剩下 "&r &f" 这类空样式，统一抹掉。 */
+    private static final Pattern LEADING_EMPTY =
+            Pattern.compile("^(?:&[0-9a-fk-orA-FK-OR]|\\s)+");
+    private static final PlainTextComponentSerializer PLAIN = PlainTextComponentSerializer.plainText();
 
     private static final Pattern HEX_PATTERN = Pattern.compile("[0-9A-Fa-f]{6}");
 
@@ -191,8 +197,10 @@ public final class AzadChatVelocity {
         UUID uuid = parseUuid(payload.uuid);
         String nick = nick(payload);
         String tag = resolveTag(tags.template(payload.server), uuid);
-        String nameSection = tag + nick + (tag.contains("%luckperms-suffix%") ? "" : suffix(uuid));
-        String nameOnly = tag + nick + suffix(uuid);
+        // 标签内部不带尾随空格（见 resolveTag），这里统一补一个分隔空格
+        String tagPart = tag.isEmpty() ? "" : tag + " ";
+        String nameSection = tagPart + nick + (tag.contains("%luckperms-suffix%") ? "" : suffix(uuid));
+        String nameOnly = tagPart + nick + suffix(uuid);
 
         switch (payload.type) {
             case Payload.CHAT -> {
@@ -207,8 +215,12 @@ public final class AzadChatVelocity {
                 if (body == null) {
                     return null;
                 }
-                String fmt = deathFormat.contains("%name%") ? deathFormat : deathFormat;
-                return splice(fmt, "%name%", nameOnly, body);
+                // 原版死亡消息（death.attack.* / death.fell.* 等）本身就把玩家名当 %1$s 带上了，
+                // 再拼一次 %name% 就会出现「A A 从高处摔了下来」。
+                String who = payload.name == null ? "" : payload.name;
+                // 原版死亡消息正文里已经带玩家名 → 只留服务器标签，不再重复拼名字
+                String nameForDeath = (!who.isBlank() && bodyMentions(body, who)) ? tag : nameOnly;
+                return splice(deathFormat, "%name%", nameForDeath, body);
             }
             // 进服 / 退服 / 切服提示由 ProxyMessages 负责，这里不再渲染，避免重复
             case Payload.JOIN, Payload.QUIT -> {
@@ -220,10 +232,23 @@ public final class AzadChatVelocity {
         }
     }
 
+    /**
+     * 死亡消息里是否已经带上了玩家名。原版的 death.attack.* / death.fell.* 都是
+     * translatable 且 %1$s 就是玩家名，所以 translatable 一律当作「已带名字」；
+     * 纯文本消息（自定义文案）则按字面是否出现名字来判断。
+     */
+    private static boolean bodyMentions(Component body, String who) {
+        if (body instanceof net.kyori.adventure.text.TranslatableComponent) {
+            return true;
+        }
+        String plain = PLAIN.serialize(body);
+        return plain.toLowerCase(java.util.Locale.ROOT).contains(who.toLowerCase(java.util.Locale.ROOT));
+    }
+
     /** 把格式串里的 %name% 换成玩家段落，%message% 换成真正的 Component（保留 hover/translate）。 */
     private static Component splice(String format, String nameToken, String nameValue, Component body) {
         String fmt = format == null ? "" : format;
-        String withName = fmt.replace(nameToken, nameValue);
+        String withName = fmt.replace(nameToken, nameValue).replaceAll(" {2,}", " ");
         int idx = withName.indexOf("%message%");
         if (idx < 0) {
             return legacy(withName);
@@ -269,7 +294,9 @@ public final class AzadChatVelocity {
         if (resolved.contains("%luckperms-suffix%")) {
             resolved = resolved.replace("%luckperms-suffix%", meta(uuid, false));
         }
-        return resolved;
+        // 模板常以 "&r %luckperms-prefix%" 结尾；LP 前缀为空时会留下尾随空格，
+        // 死亡消息里只取标签时就会变成「▎故土  正文」两个空格 → 去掉行尾空白
+        return resolved.replaceAll("\\s+$", "");
     }
 
     private String prefix(UUID uuid) {
