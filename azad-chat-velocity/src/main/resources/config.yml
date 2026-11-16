@@ -1,0 +1,29 @@
+# Azad-Chat 代理端配置（所有渲染都在这里完成）
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  # 留空 = 不发送 AUTH；服务器有密码时填这里
+  password: ""
+  channel: azad-chat
+
+tab:
+  # TAB 的 groups.yml（服务器名 / 头衔的单一数据源），相对本插件的数据目录
+  groups-yml: "../tab/groups.yml"
+  fallback-tag: ""
+
+render:
+  # %name%  = 服务器标签 + LP 前缀 + 昵称/玩家名 + LP 后缀
+  # %server% = 服务器标签（例如 §e|故土| ）
+  # %message% = 正文
+  chat-format: "%name%§f: %message%"
+  death-format: "%server%§7%message%"
+  join-format: "%server%§e%player% 加入了服务器"
+  quit-format: "%server%§e%player% 离开了服务器"
+  # 是否把消息同时打到代理控制台
+  log-to-console: true
+  # 这些服务器的消息不接收（留空 = 全收）
+  ignore-servers: []
+
+# 昵称最长保留多少字符（含颜色代码）
+nickname-maxlength: 24

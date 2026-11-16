@@ -1,0 +1,34 @@
+# Azad-Chat 子服配置
+# 本插件只负责采集事件并推到 Redis；所有渲染都在 Velocity 侧完成。
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  # 留空 = 不发送 AUTH；服务器有密码时填这里
+  password: ""
+  # 频道名必须与 Velocity 侧一致
+  channel: azad-chat
+
+server:
+  # auto = 按 server.port-map 自动识别；也可以写死 oldworld / newworld / minigames / creative / lobby
+  id: auto
+  port-map:
+    "25566": oldworld
+    "25567": newworld
+    "25568": minigames
+    "25569": creative
+    "25570": lobby
+
+nickname:
+  enabled: true
+  # ChineseName 的配置文件（绝对路径最稳；多台服共用同一份，保证全服昵称一致）
+  file: "/home/minecraft/nijijoji/mc01/plugins/ChineseName/config.yml"
+  # 文件里的颜色代码前缀，& 会被转成 §
+  color-from: "&"
+  maxlength: 16
+
+render:
+  # true = 子服只把消息发给发送者本人（跨服广播交给代理），避免同一条消息出现两次
+  mirror-inject: true
+  # 是否保留控制台输出（跨服消息在代理侧统一打印）
+  show-to-console: true

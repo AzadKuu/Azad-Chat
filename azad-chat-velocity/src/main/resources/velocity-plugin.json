@@ -1,0 +1,16 @@
+{
+  "id": "azad-chat",
+  "name": "Azad-Chat",
+  "version": "1.0.0",
+  "description": "跨服聊天 / 死亡消息统一渲染（Redis 总线）",
+  "authors": [
+    "Azad"
+  ],
+  "dependencies": [
+    {
+      "id": "luckperms",
+      "optional": true
+    }
+  ],
+  "main": "dev.azad.chat.velocity.AzadChatVelocity"
+}
