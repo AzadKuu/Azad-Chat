@@ -33,3 +33,9 @@ render:
   mirror-inject: true
   # 是否保留控制台输出（跨服消息在代理侧统一打印）
   show-to-console: true
+
+# 命令别名：无参 /home 等价于 /home home（HuskHomes 多家园玩家默认是列表面板）
+home-alias:
+  enabled: false
+  from: "home"
+  to: "home home"

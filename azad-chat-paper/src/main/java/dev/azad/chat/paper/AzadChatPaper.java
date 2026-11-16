@@ -33,6 +33,12 @@ public final class AzadChatPaper extends JavaPlugin {
                 getConfig().getString("redis.password", ""),
                 getLogger());
         Bukkit.getPluginManager().registerEvents(new ChatListener(this), this);
+        if (getConfig().getBoolean("home-alias.enabled", false)) {
+            String from = getConfig().getString("home-alias.from", "home");
+            String to = getConfig().getString("home-alias.to", "home home");
+            Bukkit.getPluginManager().registerEvents(new HomeAliasListener(this, from, to), this);
+            getLogger().info("home 别名已启用：/" + from + " -> /" + to);
+        }
         getLogger().info("Azad-Chat 已启用（server-id=" + serverId + "，频道=" + channel + "）");
         if (bus != null) {
             bus.publish(channel, new Payload().toJson());
