@@ -41,10 +41,10 @@ public final class AzadChatVelocity {
     private TabTags tags;
 
     private String channel = "azad-chat";
-    private String chatFormat = "%name%§f: %message%";
-    private String deathFormat = "%server%§7%message%";
-    private String joinFormat = "%server%§e%player% 加入了服务器";
-    private String quitFormat = "%server%§e%player% 离开了服务器";
+    private String chatFormat = "%name%&7: &f%message%";
+    private String deathFormat = "%name%&7 %message%";
+    private String joinFormat = "&8[&a+&8] %name%";
+    private String quitFormat = "&8[&c-&8] %name%";
     private boolean logToConsole = true;
     private int nicknameMaxLength = 24;
 
@@ -97,10 +97,22 @@ public final class AzadChatVelocity {
             logger.warn("[Azad-Chat] 读取 config.yml 失败，使用默认配置", e);
             config = MiniYaml.empty();
         }
-        chatFormat = config.get("render.chat-format", chatFormat);
-        deathFormat = config.get("render.death-format", deathFormat);
-        joinFormat = config.get("render.join-format", joinFormat);
-        quitFormat = config.get("render.quit-format", quitFormat);
+        chatFormat = firstNonNull(
+                config.get("render.chat-format", ""),
+                config.get("format.chat", ""),
+                chatFormat);
+        deathFormat = firstNonNull(
+                config.get("render.death-format", ""),
+                config.get("format.death", ""),
+                deathFormat);
+        joinFormat = firstNonNull(
+                config.get("render.join-format", ""),
+                config.get("format.join", ""),
+                joinFormat);
+        quitFormat = firstNonNull(
+                config.get("render.quit-format", ""),
+                config.get("format.quit", ""),
+                quitFormat);
         logToConsole = config.getBool("render.log-to-console", true);
         nicknameMaxLength = config.getInt("nickname-maxlength", 24);
         String groups = config.get("tab.groups-yml", "../tab/groups.yml");
@@ -108,7 +120,7 @@ public final class AzadChatVelocity {
         tags = TabTags.load(groupsPath, config.get("tab.fallback-tag", ""));
     }
 
-    /** 拦截代理侧聊天，转成总线消息；本地不再原样广播。 */
+    /** 拦截代理侧聊天（一般不会走到，聊天由子服采集），本地不再原样广播。 */
     @Subscribe(priority = Short.MAX_VALUE)
     public void onPlayerChat(PlayerChatEvent event) {
         Player player = event.getPlayer();
@@ -120,7 +132,7 @@ public final class AzadChatVelocity {
         payload.uuid = player.getUniqueId().toString();
         payload.name = player.getUsername();
         payload.nick = "";
-        payload.body = event.getMessage();
+        payload.body = "{\"text\":" + quote(event.getMessage()) + "}";
         if (bus != null) {
             bus.publish(channel, payload.toJson());
         }
@@ -134,7 +146,7 @@ public final class AzadChatVelocity {
         } catch (Throwable t) {
             return;
         }
-        if (payload.type == null || payload.type.isBlank() || payload.ts == 0L && payload.name.isEmpty()) {
+        if (payload.type == null || payload.type.isBlank()) {
             return;
         }
         Component message = render(payload);
@@ -165,31 +177,33 @@ public final class AzadChatVelocity {
     }
 
     private Component render(Payload payload) {
-        String tag = tags.template(payload.server);
-        String display = displayName(payload);
+        UUID uuid = parseUuid(payload.uuid);
+        String nick = nick(payload);
+        String tag = resolveTag(tags.template(payload.server), uuid);
+        String nameSection = tag + nick + (tag.contains("%luckperms-suffix%") ? "" : suffix(uuid));
+        String nameOnly = tag + nick + suffix(uuid);
+
         switch (payload.type) {
             case Payload.CHAT -> {
-                String line = chatFormat
-                        .replace("%name%", tag + display)
-                        .replace("%message%", payload.body == null ? "" : payload.body);
-                return LegacyComponentSerializer.legacySection().deserialize(recolor(line));
+                Component body = deserializeComponent(payload.body);
+                if (body == null) {
+                    return null;
+                }
+                return splice(chatFormat, "%name%", nameSection, body);
             }
             case Payload.DEATH -> {
                 Component body = deserializeComponent(payload.body);
                 if (body == null) {
                     return null;
                 }
-                Component prefix = LegacyComponentSerializer.legacySection()
-                        .deserialize(recolor(tag + deathFormat.replace("%server%", "").replace("%message%", "")));
-                return prefix.append(body);
+                String fmt = deathFormat.contains("%name%") ? deathFormat : deathFormat;
+                return splice(fmt, "%name%", nameOnly, body);
             }
             case Payload.JOIN -> {
-                return LegacyComponentSerializer.legacySection()
-                        .deserialize(recolor(joinFormat.replace("%server%", tag).replace("%player%", display)));
+                return legacy(replaceName(joinFormat, nameSection));
             }
             case Payload.QUIT -> {
-                return LegacyComponentSerializer.legacySection()
-                        .deserialize(recolor(quitFormat.replace("%server%", tag).replace("%player%", display)));
+                return legacy(replaceName(quitFormat, nameSection));
             }
             default -> {
                 return null;
@@ -197,7 +211,31 @@ public final class AzadChatVelocity {
         }
     }
 
-    private String displayName(Payload payload) {
+    /** 把格式串里的 %name% 换成玩家段落，%message% 换成真正的 Component（保留 hover/translate）。 */
+    private static Component splice(String format, String nameToken, String nameValue, Component body) {
+        String fmt = format == null ? "" : format;
+        String withName = fmt.replace(nameToken, nameValue);
+        int idx = withName.indexOf("%message%");
+        if (idx < 0) {
+            return legacy(withName);
+        }
+        String head = withName.substring(0, idx);
+        String tail = withName.substring(idx + "%message%".length());
+        Component result = legacy(head).append(body);
+        if (!tail.isEmpty()) {
+            result = result.append(legacy(tail));
+        }
+        return result;
+    }
+
+    private static String replaceName(String format, String nameSection) {
+        String fmt = format == null ? "" : format;
+        return fmt.replace("%name%", nameSection)
+                .replace("%player%", nameSection.replaceAll("(?i)%luckperms-(prefix|suffix)%", "").trim())
+                .replace("%message%", "");
+    }
+
+    private String nick(Payload payload) {
         String nick = payload.nick == null || payload.nick.isBlank() ? payload.name : payload.nick;
         if (nick == null) {
             nick = "";
@@ -205,8 +243,24 @@ public final class AzadChatVelocity {
         if (nick.length() > nicknameMaxLength) {
             nick = nick.substring(0, nicknameMaxLength);
         }
-        UUID uuid = parseUuid(payload.uuid);
-        return prefix(uuid) + nick + suffix(uuid);
+        return nick;
+    }
+
+    /** TAB 的 tabprefix 里带 %luckperms-prefix%，聊天里必须自己替换成真实值，否则会原样打出来。 */
+    private String resolveTag(String template, UUID uuid) {
+        if (template == null || template.isEmpty()) {
+            return "";
+        }
+        String resolved = template;
+        if (resolved.contains("%luckperms-prefix%")) {
+            resolved = resolved.replace("%luckperms-prefix%", meta(uuid, true));
+        } else {
+            resolved = meta(uuid, true) + resolved;
+        }
+        if (resolved.contains("%luckperms-suffix%")) {
+            resolved = resolved.replace("%luckperms-suffix%", meta(uuid, false));
+        }
+        return resolved;
     }
 
     private String prefix(UUID uuid) {
@@ -260,9 +314,35 @@ public final class AzadChatVelocity {
         }
     }
 
+    private static Component legacy(String s) {
+        return LegacyComponentSerializer.legacySection().deserialize(recolor(s));
+    }
+
     /** TAB 配置里的颜色代码是 &，转成 § 便于 Adventure 解析。 */
     private static String recolor(String s) {
         return s == null ? "" : s.replace('&', '§');
+    }
+
+    private static String firstNonNull(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isEmpty()) {
+                return v;
+            }
+        }
+        return "";
+    }
+
+    private static String quote(String s) {
+        StringBuilder sb = new StringBuilder("\"");
+        for (char c : s.toCharArray()) {
+            switch (c) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                default -> sb.append(c);
+            }
+        }
+        return sb.append('"').toString();
     }
 
     /** 把 slf4j 适配成 java.util.logging，便于复用 common 里的 RedisBus。 */

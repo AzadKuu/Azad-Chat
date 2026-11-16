@@ -16,14 +16,33 @@ import java.util.regex.Pattern;
  */
 public final class TabTags {
 
+    /** 只接受带引号的值，避免把行尾注释一起吞进来（TAB 生成的配置每行都带 ` # ...` 注释）。 */
     private static final Pattern INLINE_TABPREFIX =
-            Pattern.compile("tabprefix\\s*:\\s*(\"[^\"]*\"|'[^']*'|[^,}]+)");
+            Pattern.compile("tabprefix\\s*:\\s*(\"[^\"]*\"|'[^']*')");
 
     private final Map<String, String> templates = new LinkedHashMap<>();
     private final String fallback;
 
     private TabTags(String fallback) {
         this.fallback = fallback == null ? "" : fallback;
+    }
+
+    /** 去掉 YAML 行尾注释（感知引号，避免把 "a#b" 里的 # 当注释）。 */
+    static String stripComment(String value) {
+        boolean inSingle = false;
+        boolean inDouble = false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '\'' && !inDouble) {
+                inSingle = !inSingle;
+            } else if (c == '"' && !inSingle) {
+                inDouble = !inDouble;
+            } else if (c == '#' && !inSingle && !inDouble
+                    && (i == 0 || Character.isWhitespace(value.charAt(i - 1)))) {
+                return value.substring(0, i).trim();
+            }
+        }
+        return value.trim();
     }
 
     public static TabTags load(Path groupsYml, String fallback) {
@@ -58,7 +77,7 @@ public final class TabTags {
                         continue;
                     }
                     current = MiniYaml.unquote(body.substring(0, colon).trim());
-                    String rest = body.substring(colon + 1).trim();
+                    String rest = stripComment(body.substring(colon + 1).trim());
                     if (rest.startsWith("{")) {
                         Matcher m = INLINE_TABPREFIX.matcher(rest);
                         if (m.find()) {
@@ -68,8 +87,12 @@ public final class TabTags {
                     continue;
                 }
                 if (current != null && body.startsWith("tabprefix:")) {
-                    String value = body.substring("tabprefix:".length()).trim();
-                    tags.templates.put(current, MiniYaml.unquote(value));
+                    String value = stripComment(body.substring("tabprefix:".length()).trim());
+                    Matcher m = INLINE_TABPREFIX.matcher(value);
+                    if (m.find()) {
+                        value = m.group(1);
+                    }
+                    tags.templates.put(current, MiniYaml.unquote(value.trim()));
                 }
             }
         } catch (IOException ignored) {
