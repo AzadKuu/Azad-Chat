@@ -23,20 +23,14 @@ public final class ChatListener implements Listener {
         this.plugin = plugin;
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
         Payload payload = base(player, Payload.CHAT);
         payload.body = toJson(event.message());
         plugin.publish(payload);
-        if (plugin.mirrorInject()) {
-            try {
-                event.viewers().clear();
-                event.viewers().add(player);
-            } catch (Throwable ignored) {
-                // 注入失败就退回原样广播，最多是本地重复一条
-            }
-        }
+        // 本地不再渲染：统一由 Velocity 侧广播一次，避免「本地一条 + 代理一条」
+        event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

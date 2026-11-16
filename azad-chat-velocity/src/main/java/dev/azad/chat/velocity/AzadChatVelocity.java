@@ -157,26 +157,11 @@ public final class AzadChatVelocity {
             return;
         }
         for (Player viewer : proxy.getAllPlayers()) {
-            if (isEcho(payload, viewer)) {
-                continue;
-            }
             viewer.sendMessage(message);
         }
         if (logToConsole) {
             proxy.getConsoleCommandSource().sendMessage(message);
         }
-    }
-
-    private boolean isEcho(Payload payload, Player viewer) {
-        if (!Payload.CHAT.equals(payload.type)) {
-            return false;
-        }
-        if (!viewer.getUsername().equalsIgnoreCase(payload.name)) {
-            return false;
-        }
-        return viewer.getCurrentServer()
-                .map(connection -> connection.getServerInfo().getName().equals(payload.server))
-                .orElse(false);
     }
 
     private Component render(Payload payload) {
