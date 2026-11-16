@@ -46,12 +46,18 @@ public final class ChatListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
+        if (!plugin.eventsJoinQuit()) {
+            return;
+        }
         Payload payload = base(event.getPlayer(), Payload.JOIN);
         plugin.publish(payload);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
+        if (!plugin.eventsJoinQuit()) {
+            return;
+        }
         Payload payload = base(event.getPlayer(), Payload.QUIT);
         plugin.publish(payload);
     }

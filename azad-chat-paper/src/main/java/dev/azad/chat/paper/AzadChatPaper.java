@@ -19,6 +19,7 @@ public final class AzadChatPaper extends JavaPlugin {
     private String serverId = "unknown";
     private boolean mirrorInject = true;
     private boolean showToConsole = true;
+    private boolean joinQuit = false;
     private NameService names;
 
     @Override
@@ -44,6 +45,7 @@ public final class AzadChatPaper extends JavaPlugin {
         serverId = resolveServerId();
         mirrorInject = getConfig().getBoolean("render.mirror-inject", true);
         showToConsole = getConfig().getBoolean("render.show-to-console", true);
+        joinQuit = getConfig().getBoolean("events.join-quit", false);
     }
 
     private String resolveServerId() {
@@ -93,6 +95,10 @@ public final class AzadChatPaper extends JavaPlugin {
 
     public boolean mirrorInject() {
         return mirrorInject;
+    }
+
+    public boolean eventsJoinQuit() {
+        return joinQuit;
     }
 
     public boolean showToConsole() {

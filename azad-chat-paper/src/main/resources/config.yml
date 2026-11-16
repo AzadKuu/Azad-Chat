@@ -32,3 +32,7 @@ render:
   mirror-inject: true
   # 是否保留控制台输出（跨服消息在代理侧统一打印）
   show-to-console: true
+
+# 进服 / 退服 / 切服提示默认关闭：这些由 ProxyMessages 负责，避免重复
+events:
+  join-quit: false

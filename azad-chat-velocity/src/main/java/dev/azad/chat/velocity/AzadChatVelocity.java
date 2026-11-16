@@ -187,11 +187,9 @@ public final class AzadChatVelocity {
                 String fmt = deathFormat.contains("%name%") ? deathFormat : deathFormat;
                 return splice(fmt, "%name%", nameOnly, body);
             }
-            case Payload.JOIN -> {
-                return legacy(replaceName(joinFormat, nameSection));
-            }
-            case Payload.QUIT -> {
-                return legacy(replaceName(quitFormat, nameSection));
+            // 进服 / 退服 / 切服提示由 ProxyMessages 负责，这里不再渲染，避免重复
+            case Payload.JOIN, Payload.QUIT -> {
+                return null;
             }
             default -> {
                 return null;
