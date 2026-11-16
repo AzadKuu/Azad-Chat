@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 
 import java.nio.file.Path;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * 代理侧：订阅 Redis 总线，把子服推上来的聊天 / 死亡 / 进服消息统一渲染后广播给所有在线玩家。
@@ -31,6 +32,8 @@ import java.util.UUID;
         authors = {"Azad"}
 )
 public final class AzadChatVelocity {
+
+    private static final Pattern HEX_PATTERN = Pattern.compile("[0-9A-Fa-f]{6}");
 
     private final ProxyServer proxy;
     private final Logger logger;
@@ -318,9 +321,35 @@ public final class AzadChatVelocity {
         return LegacyComponentSerializer.legacySection().deserialize(recolor(s));
     }
 
-    /** TAB 配置里的颜色代码是 &，转成 § 便于 Adventure 解析。 */
+    /** TAB 配置里的颜色代码是 &，转成 § 便于 Adventure 解析；同时把 #RRGGBB 转成 §x§R§R§G§G§B§B。 */
     private static String recolor(String s) {
-        return s == null ? "" : s.replace('&', '§');
+        if (s == null) {
+            return "";
+        }
+        String out = s.replace('&', '§');
+        StringBuilder sb = new StringBuilder(out.length() + 16);
+        int i = 0;
+        while (i < out.length()) {
+            char c = out.charAt(i);
+            boolean sectionHex = c == '§' && i + 7 < out.length() && out.charAt(i + 1) == '#';
+            boolean bareHex = c == '#' && (i == 0 || out.charAt(i - 1) != '§');
+            int hexStart = sectionHex ? i + 2 : (bareHex ? i + 1 : -1);
+            if (hexStart > 0 && hexStart + 6 <= out.length()
+                    && HEX_PATTERN.matcher(out.substring(hexStart, hexStart + 6)).matches()) {
+                if (sectionHex) {
+                    sb.append('§');
+                }
+                sb.append("§x");
+                for (char h : out.substring(hexStart, hexStart + 6).toCharArray()) {
+                    sb.append('§').append(Character.toUpperCase(h));
+                }
+                i = hexStart + 6;
+                continue;
+            }
+            sb.append(c);
+            i++;
+        }
+        return sb.toString();
     }
 
     private static String firstNonNull(String... values) {
